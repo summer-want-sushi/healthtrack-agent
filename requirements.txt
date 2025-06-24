@@ -1,0 +1,18 @@
+# Core frameworks
+openai>=1.13        # or azure-openai / huggingface_hub
+llama-index>=0.10
+langchain-core>=0.1.19
+
+# Storage / parsing
+pydantic>=2.6
+python-dateutil
+sqlalchemy>=2.0
+tqdm
+
+# Web UI (pick one later)
+gradio>=4.11
+# fastapi
+# uvicorn
+
+# Testing
+pytest
