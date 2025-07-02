@@ -62,6 +62,8 @@ def natural_language_to_datetime(text: str, user_tz: str | None = "UTC") -> date
     match = re.search(r"\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}", text)
     if match:
         dt = parse(match.group(0))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=tz)
     else:
         t = text.strip().lower()
         now = datetime.now(tz)
