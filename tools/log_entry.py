@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timezone
+import json
 
 from tools.health_schema import SymptomLog, Severity
 from db.engine import SessionLocal, Base, engine
@@ -25,8 +26,8 @@ def tool_log(text: str, user_id: str) -> str:
     entry = SymptomLog(
         symptom=text,
         severity=Severity.none,
-        started_at=datetime.utcnow(),
-        notes=f"user:{user_id}",
+        started_at=datetime.now(timezone.utc),
+        notes=json.dumps({"user_id": user_id}),
     )
 
     with SessionLocal() as db:
