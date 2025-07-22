@@ -4,8 +4,10 @@ from tools.health_schema import SymptomLog, Severity
 from db.engine import SessionLocal, Base, engine
 from db.models import SymptomLogORM
 
-# Ensure tables exist
-Base.metadata.create_all(engine)
+
+def ensure_tables() -> None:
+    """Create database tables if they do not already exist."""
+    Base.metadata.create_all(engine)
 
 
 def tool_log(text: str, user_id: str) -> str:
@@ -18,6 +20,8 @@ def tool_log(text: str, user_id: str) -> str:
     user_id : str
         Identifier for the submitting user.
     """
+    ensure_tables()
+
     entry = SymptomLog(
         symptom=text,
         severity=Severity.none,
