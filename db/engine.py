@@ -1,24 +1,32 @@
-"""
-SQLAlchemy engine + Session factory
-"""
-from pathlib import Path
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+"""SQLAlchemy engine utilities."""
 
-DB_PATH = Path(__file__).resolve().parent.parent / "health.db"
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
+from pathlib import Path
+
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import DeclarativeBase
+
 
 class Base(DeclarativeBase):
     """Declarative base for all ORM models."""
+
     pass
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},  # needed for SQLite multithread
-    echo=False,
-)
-SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
-# Create tables as soon as module is imported
+def get_engine() -> Engine:
+    """Return an engine bound to ``health.db`` in the current working directory."""
+
+    db_path = Path.cwd() / "health.db"
+    url = f"sqlite:///{db_path}"
+    return create_engine(
+        url,
+        connect_args={"check_same_thread": False},
+        echo=False,
+    )
+
+
+# Create tables using the default engine at import time so interactive usage
+# behaves as expected. Individual sessions may use engines pointing elsewhere.
 from db import models  # noqa: E402 – side-effect import
-Base.metadata.create_all(engine)
+Base.metadata.create_all(get_engine())
+
