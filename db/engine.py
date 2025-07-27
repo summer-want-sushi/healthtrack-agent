@@ -1,11 +1,13 @@
 """
 SQLAlchemy engine + Session factory
 """
+import os
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-DB_PATH = Path(__file__).resolve().parent.parent / "health.db"
+DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "health.db"
+DB_PATH = Path(os.environ.get("HEALTH_DB_PATH", DEFAULT_DB_PATH))
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 class Base(DeclarativeBase):
