@@ -1,26 +1,30 @@
-from typing import List, Optional
-from datetime import datetime
+from __future__ import annotations
+
+import json
+from typing import List
 
 from db.engine import SessionLocal
-from tools.health_schema import SymptomLog
 from db.models import SymptomLogORM
+from tools.health_schema import SymptomLog
 
 
-def tool_get_entries(user_id: str, since: Optional[str] = None) -> List[dict]:
-    """Return symptom logs for ``user_id`` optionally filtered by ``since``."""
-    since_dt: Optional[datetime] = None
-    if since:
-        since_dt = datetime.fromisoformat(since)
-
+def tool_get_entries(user_id: str) -> List[dict]:
+    """Return all symptom log entries belonging to ``user_id``."""
     db = SessionLocal()
     try:
-        query = db.query(SymptomLogORM).filter(SymptomLogORM.user_id == user_id)
-        if since_dt:
-            query = query.filter(SymptomLogORM.started_at >= since_dt)
-        rows = query.all()
-        return [
-            SymptomLog.model_validate(row, from_attributes=True).model_dump(exclude_none=True)
-            for row in rows
-        ]
+        rows = db.query(SymptomLogORM).all()
+        result: List[dict] = []
+        for row in rows:
+            try:
+                notes = json.loads(row.notes) if row.notes else {}
+            except Exception:
+                notes = {}
+            if notes.get("user_id") == user_id:
+                result.append(
+                    SymptomLog.model_validate(row, from_attributes=True).model_dump(
+                        exclude_none=True
+                    )
+                )
+        return result
     finally:
         db.close()
