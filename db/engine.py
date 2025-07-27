@@ -25,8 +25,21 @@ def get_engine() -> Engine:
     )
 
 
-# Create tables using the default engine at import time so interactive usage
-# behaves as expected. Individual sessions may use engines pointing elsewhere.
-from db import models  # noqa: E402 – side-effect import
-Base.metadata.create_all(get_engine())
+_initialized_paths: set[Path] = set()
+
+
+def init_db(engine: Engine | None = None) -> Engine:
+    """Initialize database tables if they haven't been created."""
+
+    if engine is None:
+        engine = get_engine()
+
+    db_path = Path(engine.url.database or "")
+    if db_path not in _initialized_paths:
+        from db import models  # noqa: E402 – side-effect import
+
+        Base.metadata.create_all(engine)
+        _initialized_paths.add(db_path)
+
+    return engine
 

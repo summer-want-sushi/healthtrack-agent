@@ -4,9 +4,10 @@ Thin CRUD wrapper around SQLAlchemy sessions.
 from contextlib import contextmanager
 from typing import Iterable, List
 
+
 from sqlalchemy.orm import sessionmaker
 
-from db.engine import Base, get_engine
+from db.engine import Base, get_engine, init_db
 from db.models import SymptomLogORM
 from tools.health_schema import SymptomLog
 
@@ -15,7 +16,7 @@ def session_scope():
     """Provide a transactional scope around a series of operations."""
 
     engine = get_engine()
-    Base.metadata.create_all(engine)
+    init_db(engine)
     SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
     db = SessionLocal()
     try:
