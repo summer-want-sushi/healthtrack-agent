@@ -2,17 +2,27 @@
 Thin CRUD wrapper around SQLAlchemy sessions.
 """
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Iterable, List
 
 
 from sqlalchemy.orm import sessionmaker
 
-from db.engine import Base, get_engine, init_db
+from db.engine import get_engine, init_db
 
-# Create the engine and session factory once at import time
-_engine = get_engine()
-init_db(_engine)
-SessionLocal = sessionmaker(bind=_engine, expire_on_commit=False)
+_SESSION_FACTORIES: dict[Path, sessionmaker] = {}
+
+
+def _get_session_factory() -> sessionmaker:
+    """Return a session factory bound to ``health.db`` in the current directory."""
+
+    db_path = Path.cwd() / "health.db"
+    factory = _SESSION_FACTORIES.get(db_path)
+    if factory is None:
+        engine = init_db(get_engine())
+        factory = sessionmaker(bind=engine, expire_on_commit=False)
+        _SESSION_FACTORIES[db_path] = factory
+    return factory
 from db.models import SymptomLogORM
 from tools.health_schema import SymptomLog
 
@@ -20,6 +30,7 @@ from tools.health_schema import SymptomLog
 def session_scope():
     """Provide a transactional scope around a series of operations."""
 
+    SessionLocal = _get_session_factory()
     db = SessionLocal()
     try:
         yield db
