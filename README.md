@@ -12,3 +12,15 @@ repo.add_log(log)
 print(repo.list_logs())
 PY
 ```
+
+## Running tests
+
+Ensure all dependencies are installed before executing the test suite:
+
+```bash
+pip install -r requirements.txt
+pytest -q
+```
+
+To run tests against a temporary database, set the ``HEALTH_DB_PATH`` environment
+variable to a writable location.

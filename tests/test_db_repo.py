@@ -3,13 +3,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from zoneinfo import ZoneInfo
-from db import repository as repo
 from tools.health_schema import Severity, SymptomLog, natural_language_to_datetime
 
 
 def test_repo_roundtrip(tmp_path, monkeypatch):
-    # Redirect health.db to a temp directory for isolation
-    monkeypatch.chdir(tmp_path)
+    # Use a temporary database for isolation
+    monkeypatch.setenv("HEALTH_DB_PATH", str(tmp_path / "health.db"))
+    import importlib
+    from db import repository as repo
+    importlib.reload(repo)
 
     # Create a sample log
     dt = natural_language_to_datetime("2024-07-01 08:00", user_tz="America/New_York")
