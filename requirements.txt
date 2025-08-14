@@ -6,13 +6,14 @@ langchain-core>=0.1.19
 # Storage / parsing
 pydantic>=2.6
 python-dateutil
+dateparser
 sqlalchemy>=2.0
 tqdm
 
-# Web UI (pick one later)
+# Web
 gradio>=4.11
-# fastapi
-# uvicorn
+fastapi
+uvicorn
 
 # Testing
 pytest
