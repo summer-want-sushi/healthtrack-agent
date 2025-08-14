@@ -3,7 +3,9 @@ Thin CRUD wrapper around SQLAlchemy sessions.
 """
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Optional
+from datetime import datetime
+import json
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -61,10 +63,42 @@ def add_log(log: SymptomLog) -> None:
     with session_scope() as db:
         db.add(SymptomLogORM(**log.model_dump()))
 
-def list_logs() -> List[SymptomLog]:
+def list_logs(
+    user_id: Optional[str] = None,
+    since: Optional[datetime] = None,
+) -> List[SymptomLog]:
+    """
+    List logs with optional filters.
+
+    Args:
+        user_id: If provided, only return rows whose notes JSON has {"user_id": <user_id>}.
+        since:   If provided, only return rows with created_at >= since.
+
+    Note:
+        We do not have a dedicated user_id column yet, so we read user_id
+        from the notes JSON (if present). This preserves the behavior that
+        existed in db/health_db.py::get_entries.
+    """
     with session_scope() as db:
-        rows: Iterable[SymptomLogORM] = db.query(SymptomLogORM).all()
-        return [SymptomLog.model_validate(row, from_attributes=True) for row in rows]
+        q = db.query(SymptomLogORM)
+        if since is not None:
+            q = q.filter(SymptomLogORM.created_at >= since)
+
+        rows: Iterable[SymptomLogORM] = q.all()
+        results: List[SymptomLog] = []
+
+        for row in rows:
+            if user_id is not None:
+                try:
+                    notes_obj = json.loads(row.notes) if row.notes else {}
+                except Exception:
+                    notes_obj = {}
+                if notes_obj.get("user_id") != user_id:
+                    continue
+
+            results.append(SymptomLog.model_validate(row, from_attributes=True))
+
+        return results
 
 def get_log(log_id: str) -> SymptomLog | None:
     with session_scope() as db:
@@ -72,3 +106,8 @@ def get_log(log_id: str) -> SymptomLog | None:
         return (
             SymptomLog.model_validate(row, from_attributes=True) if row else None
         )
+
+
+def get_entries(user_id: str, since: Optional[datetime] = None) -> List[SymptomLog]:
+    """Compatibility wrapper to match the former db/health_db.py interface."""
+    return list_logs(user_id=user_id, since=since)

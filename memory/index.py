@@ -3,7 +3,7 @@ from typing import List
 from llama_index.core import Document, StorageContext, VectorStoreIndex, load_index_from_storage
 from llama_index.embeddings.openai import OpenAIEmbedding
 from tools.health_schema import SymptomLog
-from db.health_db import get_entries  # implement/adjust import to your Phase-2 CRUD
+from db.repository import get_entries
 import os, json, pathlib
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[1]
