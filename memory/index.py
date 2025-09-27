@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List
+from typing import Iterable, List
 from llama_index.core import Document, StorageContext, VectorStoreIndex, load_index_from_storage
 from llama_index.embeddings.openai import OpenAIEmbedding
 from tools.health_schema import SymptomLog
@@ -57,6 +57,13 @@ def add_entry_to_index(user_id: str, entry: SymptomLog) -> None:
     """Append a single entry to an existing (or new) user index and persist."""
     index = build_or_load_index(user_id)  # loads or builds
     index.insert(entry_to_document(entry))
+    index.storage_context.persist(persist_dir=_persist_dir(user_id))
+
+
+def upsert_entries(user_id: str, entries: Iterable[SymptomLog]) -> None:
+    index = build_or_load_index(user_id)
+    for e in entries:
+        index.insert(entry_to_document(e))
     index.storage_context.persist(persist_dir=_persist_dir(user_id))
 
 def query_index(user_id: str, question: str, k: int = 8):
