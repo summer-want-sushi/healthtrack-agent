@@ -3,6 +3,7 @@ import json
 import logging
 
 from tools.health_schema import SymptomLog, Severity
+from memory.index import upsert_entries
 from db.engine import SessionLocal, Base, engine
 from db.models import SymptomLogORM
 
@@ -40,6 +41,11 @@ def tool_log(text: str, user_id: str) -> str:
             db.add(orm_entry)
             db.commit()
             db.refresh(orm_entry)
+
+            upsert_entries(
+                user_id,
+                [SymptomLog.model_validate(orm_entry, from_attributes=True)],
+            )
         except Exception as exc:
             db.rollback()
             logger.error("Failed to log symptom entry: %s", exc)
