@@ -17,14 +17,17 @@ logger = logging.getLogger(__name__)
 
 
 def tool_log(text: str, user_id: str) -> str:
-    """Persist a free-form symptom description.
-
-    Parameters
-    ----------
-    text : str
-        Description provided by the user.
-    user_id : str
-        Identifier for the submitting user.
+    """
+    Persist a free-form symptom description and index it for the given user.
+    
+    Creates a SymptomLog record, saves it to the database, and upserts the corresponding entry into the search/index backend.
+    
+    Parameters:
+        text (str): Description provided by the user.
+        user_id (str): Identifier of the submitting user; also stored in the entry's notes.
+    
+    Returns:
+        str: Confirmation message in the form "Logged entry with id: {id}" containing the persisted entry's id.
     """
     ensure_tables()
 

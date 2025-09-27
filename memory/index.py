@@ -54,20 +54,46 @@ def build_or_load_index(user_id: str) -> VectorStoreIndex:
     return index
 
 def add_entry_to_index(user_id: str, entry: SymptomLog) -> None:
-    """Append a single entry to an existing (or new) user index and persist."""
+    """
+    Append a SymptomLog entry to the user's vector index and persist the index to disk.
+    
+    Parameters:
+        user_id (str): Identifier of the user whose index will be updated.
+        entry (SymptomLog): SymptomLog entry to convert and insert into the index.
+    """
     index = build_or_load_index(user_id)  # loads or builds
     index.insert(entry_to_document(entry))
     index.storage_context.persist(persist_dir=_persist_dir(user_id))
 
 
 def upsert_entries(user_id: str, entries: Iterable[SymptomLog]) -> None:
+    """
+    Insert multiple SymptomLog entries into the user's vector index and persist the updated index.
+    
+    Parameters:
+        user_id (str): Identifier of the user whose index will be updated.
+        entries (Iterable[SymptomLog]): Iterable of SymptomLog objects to convert and upsert into the index.
+    """
     index = build_or_load_index(user_id)
     for e in entries:
         index.insert(entry_to_document(e))
     index.storage_context.persist(persist_dir=_persist_dir(user_id))
 
 def query_index(user_id: str, question: str, k: int = 8):
-    """Return top-k retrieved nodes’ text+metadata for a question."""
+    """
+    Retrieve the top-k most similar documents for a question from the user's index.
+    
+    Each result contains the document text content, its similarity score, and any associated metadata.
+    
+    Parameters:
+        k (int): Maximum number of results to return.
+    
+    Returns:
+        List[dict]: A list of result dictionaries with keys:
+            - "text" (str): The document content.
+            - "score" (float): The node's similarity score.
+            - "metadata" (dict): The node's metadata, or an empty dict if none.
+    """
     index = build_or_load_index(user_id)
     retriever = index.as_retriever(similarity_top_k=k)
     nodes = retriever.retrieve(question)
