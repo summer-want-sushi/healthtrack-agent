@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Union
 
 import dateparser
 import gradio as gr
@@ -14,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from db import repository as repo
-from tools.get_entries import tool_get_entries
+from tools.get_entries import get_entries as fetch_entries
 from tools.health_schema import SymptomLog
 from tools.log_entry import tool_log
 from tools.summarize import tool_summarize
@@ -32,24 +33,32 @@ def log_entry(user_id: str, message: str):
     return tool_log(text=message, user_id=user_id)
 
 
-def get_entries(user_id: str, since: Optional[str] = None):
-    """Adapter for ``tool_get_entries`` supporting an optional ``since`` argument."""
+def _ensure_aware(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
-    entries = tool_get_entries(user_id=user_id)
-    if since:
-        dt = dateparser.parse(since)
-        if dt:
-            filtered = []
-            for entry in entries:
-                started = entry.get("started_at")
-                created = entry.get("created_at")
-                ts = dateparser.parse(started) if started else None
-                if not ts and created:
-                    ts = dateparser.parse(created)
-                if ts and ts >= dt:
-                    filtered.append(entry)
-            return filtered
-    return entries
+
+def _parse_since(value: Optional[Union[str, datetime]]) -> Optional[datetime]:
+    """Parse ``value`` into an aware ``datetime`` or ``None``."""
+
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return _ensure_aware(value)
+    if not isinstance(value, str):
+        raise TypeError("since must be a datetime or ISO-like string")
+    dt = dateparser.parse(value)
+    if not dt:
+        raise ValueError("Invalid 'since' parameter")
+    return _ensure_aware(dt)
+
+
+def get_entries(user_id: str, since: Optional[Union[str, datetime]] = None):
+    """Adapter for ``tools.get_entries.get_entries`` with optional parsing."""
+
+    dt = _parse_since(since)
+    return fetch_entries(user_id=user_id, since=dt)
 
 
 def summarize(user_id: str, question: str | None = None, days: int = 7):
@@ -169,25 +178,22 @@ def llamaindex_route(user_id: str, text: str) -> str:
     from llama_index.core.tools import FunctionTool
     from llama_index.llms.openai import OpenAI
 
-    def _tool(fn, name, desc):
-        return FunctionTool.from_defaults(fn=fn, name=name, description=desc)
-
-    t_log = _tool(
-        lambda user_id, message: log_entry(user_id=user_id, message=message),
-        "log_entry",
-        "Parse free-text symptom note, save to DB, and update the index.",
+    t_log = FunctionTool.from_defaults(
+        fn=lambda user_id, message: log_entry(user_id=user_id, message=message),
+        name="log_entry",
+        description="Parse free-text symptom note, save to DB, and update the index.",
     )
-    t_entries = _tool(
-        lambda user_id, since=None: get_entries(user_id=user_id, since=since),
-        "get_entries",
-        "List recent symptom logs for the user.",
+    t_entries = FunctionTool.from_defaults(
+        fn=lambda user_id, since=None: get_entries(user_id=user_id, since=since),
+        name="get_entries",
+        description="List recent symptom logs for the user.",
     )
-    t_sum = _tool(
-        lambda user_id, question="Summarize my recent symptoms.", days=7: summarize(
+    t_sum = FunctionTool.from_defaults(
+        fn=lambda user_id, question="Summarize my recent symptoms.", days=7: summarize(
             user_id=user_id, question=question, days=days
         ),
-        "summarize",
-        "Concise, doctor-friendly summary grounded in recent entries.",
+        name="summarize",
+        description="Concise, doctor-friendly summary grounded in recent entries.",
     )
 
     SYSTEM_PROMPT = (
@@ -262,21 +268,7 @@ def _log_symptom(user_id: str, text: str) -> Dict[str, Any]:
 def _list_entries(user_id: str, since: str | None = None) -> List[Dict[str, Any]]:
     """Return all entries for ``user_id`` optionally filtered by ``since``."""
 
-    entries = [_serialise(e) for e in get_entries(user_id=user_id)]
-
-    if since:
-        dt = dateparser.parse(since)
-        if not dt:
-            raise ValueError("Invalid 'since' parameter")
-        entries = [
-            e
-            for e in entries
-            if (
-                (e.get("started_at") and dateparser.parse(e["started_at"]) >= dt)
-                or (e.get("created_at") and dateparser.parse(e["created_at"]) >= dt)
-            )
-        ]
-
+    entries = [_serialise(e) for e in get_entries(user_id=user_id, since=since)]
     return entries
 
 
