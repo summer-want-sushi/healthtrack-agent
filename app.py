@@ -27,13 +27,32 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
 def log_entry(user_id: str, message: str):
-    """Adapter exposing ``tool_log`` with a friendlier signature."""
+    """
+    Create a symptom log entry from free-form text for the specified user.
+    
+    Parameters:
+        user_id (str): Identifier of the user who generated the log.
+        message (str): Free-form symptom text to record.
+    
+    Returns:
+        The created log entry (e.g., a SymptomLog instance or a dict) containing the stored entry's data.
+    """
 
     return tool_log(text=message, user_id=user_id)
 
 
 def get_entries(user_id: str, since: Optional[str] = None):
-    """Adapter for ``tool_get_entries`` supporting an optional ``since`` argument."""
+    """
+    Retrieve all entries for a user, optionally filtering to entries on or after a given date/time.
+    
+    Parameters:
+        since (str | None): Optional human-readable date/time string. When provided, entries whose `started_at`
+            or `created_at` timestamp is on or after the parsed date/time are returned.
+    
+    Returns:
+        list[dict]: A list of entry dictionaries for the user. If `since` is provided and successfully parsed,
+            only entries meeting the timestamp filter are returned; otherwise all entries are returned.
+    """
 
     entries = tool_get_entries(user_id=user_id)
     if since:
@@ -53,7 +72,17 @@ def get_entries(user_id: str, since: Optional[str] = None):
 
 
 def summarize(user_id: str, question: str | None = None, days: int = 7):
-    """Adapter for ``tool_summarize`` ignoring extra guidance parameters for now."""
+    """
+    Produce a doctor-friendly summary of a user's recent symptom logs.
+    
+    Parameters:
+        user_id (str): Identifier of the user whose entries will be summarized.
+        question (str | None): Optional guiding question for the summary (currently accepted for compatibility but ignored).
+        days (int): Optional lookback window in days (currently accepted for compatibility but ignored).
+    
+    Returns:
+        str: Summary text suitable for a clinician describing the user's recent symptom history.
+    """
 
     _ = question, days  # kept for compatibility / future use
     return tool_summarize(user_id=user_id)
@@ -87,7 +116,17 @@ TIME_HINT_RE = re.compile(
 
 
 def _looks_like_logging(text: str) -> bool:
-    """Heuristic: symptom-ish words or time anchors → likely a log request."""
+    """
+    Determine whether a user message likely represents a symptom log entry.
+    
+    Checks for presence of symptom-related keywords or time-related phrases to decide if the text resembles a logging request.
+    
+    Parameters:
+        text (str): The user-provided message to evaluate.
+    
+    Returns:
+        `True` if the text likely represents a symptom log entry, `False` otherwise.
+    """
 
     t = text.lower()
     symptomy = any(w in t for w in SYMPTOM_HINTS)
@@ -96,15 +135,45 @@ def _looks_like_logging(text: str) -> bool:
 
 
 def _is_summarize_intent(text: str) -> bool:
+    """
+    Detect whether the given text expresses an intent to request a summary or overview.
+    
+    Parameters:
+        text (str): Input text to analyze for summarization intent.
+    
+    Returns:
+        bool: True if the text contains keywords indicating a request for a summary or overview (e.g., "summarize", "summary", "trend", "overview", "doctor"), False otherwise.
+    """
     return bool(re.search(r"\b(summarize|summary|trend|overview|doctor)\b", text, re.I))
 
 
 def _is_list_intent(text: str) -> bool:
+    """
+    Detects whether the input text expresses an intent to list or show entries or logs.
+    
+    Returns:
+        `true` if the text contains keywords like "show", "list", "entries", or "log(s)", `false` otherwise.
+    """
     return bool(re.search(r"\b(show|list|entries|logs?)\b", text, re.I))
 
 
 def format_confirmation(result) -> str:
-    """Turn tool results into short user-facing text."""
+    """
+    Create a concise user-facing confirmation message from a tool result.
+    
+    Parameters:
+        result: The tool output to format. May be an object with attributes
+            `main_symptom` or `symptom`, `severity`, `timestamp`, and
+            `medicines_taken`, or a list/tuple of entries, or any other value.
+    
+    Returns:
+        A short string suitable for display:
+        - If symptom/ severity/ timestamp/ medicines are present, returns a
+          "Logged: ..." message containing the main symptom, severity as "(<severity>/10)",
+          a "since <timestamp>" clause when available, and "meds: <medicines_taken>" when present.
+        - If `result` is a list or tuple, returns "`<n>` entry/entries found."
+        - Otherwise returns str(result).
+    """
 
     try:
         main = getattr(result, "main_symptom", None) or getattr(result, "symptom", None)
@@ -130,7 +199,18 @@ def format_confirmation(result) -> str:
 
 
 def heuristic_route(user_id: str, text: str):
-    """Rule-based router: slash commands > keywords > symptom heuristic > default summarize."""
+    """
+    Route a user's free-form message to an appropriate action using rule-based heuristics.
+    
+    The router handles, in order: explicit slash commands (`/log`, `/entries`, `/sum`), explicit summarize or list intents, a symptom-logging heuristic, and a default summary fallback. It returns a formatted confirmation for logging and listing actions or a summary string for summarization requests.
+    
+    Parameters:
+        user_id (str): Identifier of the user whose data the action should apply to.
+        text (str): The user's message or command to be routed.
+    
+    Returns:
+        str: A user-facing response produced by the chosen action (confirmation, serialized entries, or summary).
+    """
 
     msg = text.strip()
     head = msg.split(" ", 1)[0].lower()
@@ -163,13 +243,32 @@ def heuristic_route(user_id: str, text: str):
 
 
 def llamaindex_route(user_id: str, text: str) -> str:
-    """Route via a small LlamaIndex agent. Raises on indecision so caller can fallback."""
+    """
+    Route a user message through a small LlamaIndex agent that selects and invokes exactly one tool (log_entry, get_entries, or summarize) and returns the agent's textual response.
+    
+    Returns:
+        str: The agent's chosen tool output or response text.
+    
+    Raises:
+        RuntimeError: If the agent returns an empty, indecisive, or error-like response.
+    """
 
     from llama_index.core.agent import ReActAgent
     from llama_index.core.tools import FunctionTool
     from llama_index.llms.openai import OpenAI
 
     def _tool(fn, name, desc):
+        """
+        Create a FunctionTool configured with the given callable, name, and description.
+        
+        Parameters:
+            fn (callable): The Python function to expose as a tool.
+            name (str): The identifier to register the tool under.
+            desc (str): A short human-readable description of the tool's purpose.
+        
+        Returns:
+            FunctionTool: A FunctionTool instance created with the provided function, name, and description.
+        """
         return FunctionTool.from_defaults(fn=fn, name=name, description=desc)
 
     t_log = _tool(
@@ -214,7 +313,14 @@ def llamaindex_route(user_id: str, text: str) -> str:
 
 
 def route_message(user_id: str, text: str) -> str:
-    """Main entry: try agent when enabled; otherwise or on failure, use heuristic."""
+    """
+    Route an incoming user message to the configured router and return a user-facing response.
+    
+    If ROUTER_MODE is "llamaindex", attempt to use the LlamaIndex agent and fall back to the heuristic router on failure; otherwise use the heuristic router.
+    
+    Returns:
+        response (str): The routed handler's user-facing response.
+    """
 
     if ROUTER_MODE == "llamaindex":
         try:
@@ -245,7 +351,16 @@ def _serialise(entry: SymptomLog | Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _log_symptom(user_id: str, text: str) -> Dict[str, Any]:
-    """Persist ``text`` for ``user_id`` and return the stored entry."""
+    """
+    Persist a symptom text for a user and return the stored log entry as a serializable dict.
+    
+    Returns:
+        A JSON-serializable dict representing the stored log entry.
+    
+    Raises:
+        ValueError: If the created log entry ID cannot be parsed from the logging response.
+        RuntimeError: If the persisted log entry cannot be retrieved from the repository.
+    """
 
     msg = log_entry(user_id=user_id, message=text)
     try:
@@ -260,7 +375,20 @@ def _log_symptom(user_id: str, text: str) -> Dict[str, Any]:
 
 
 def _list_entries(user_id: str, since: str | None = None) -> List[Dict[str, Any]]:
-    """Return all entries for ``user_id`` optionally filtered by ``since``."""
+    """
+    Get serialized symptom entries for a user, optionally filtered to entries on or after a given date.
+    
+    Parameters:
+        user_id (str): ID of the user whose entries to retrieve.
+        since (str | None): Date/time string to filter entries; only entries with `started_at` or `created_at`
+            greater than or equal to this date are returned. If the string cannot be parsed a ValueError is raised.
+    
+    Returns:
+        List[Dict[str, Any]]: A list of serialized entry dictionaries (dates as ISO strings when available).
+    
+    Raises:
+        ValueError: If `since` is provided but cannot be parsed as a date.
+    """
 
     entries = [_serialise(e) for e in get_entries(user_id=user_id)]
 
@@ -323,7 +451,15 @@ def api_entries(
 
 @api_router.get("/summary")
 def api_summary(user_id: str = Query(..., description="User identifier")):
-    """Return a doctor-friendly summary of recent entries."""
+    """
+    Provide a doctor-friendly summary of recent entries for the given user.
+    
+    Returns:
+        dict: Mapping with key "summary" containing the generated summary text.
+    
+    Raises:
+        HTTPException: With status code 500 if generating the summary fails.
+    """
 
     try:
         return {"summary": summarize(user_id=user_id)}
