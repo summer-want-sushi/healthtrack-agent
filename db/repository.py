@@ -1,11 +1,12 @@
 """
 Thin CRUD wrapper around SQLAlchemy sessions.
 """
+import json
+import os
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List, Optional
-from datetime import datetime
-import json
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -17,6 +18,7 @@ from tools.health_schema import SymptomLog
 _engine_cwd = Path.cwd()
 _engine = _default_engine
 _SessionLocal = _DefaultSessionLocal
+_engine_path = Path(_engine.url.database).resolve()
 
 def init_db(engine) -> None:
     """Create database tables for a given engine."""
@@ -31,12 +33,19 @@ def session_scope():
     If the current working directory changes, a new engine bound to the
     directory's ``health.db`` is created and initialized.
     """
-    global _engine_cwd, _engine, _SessionLocal
+    global _engine_cwd, _engine_path, _engine, _SessionLocal
 
     cwd = Path.cwd()
-    if cwd != _engine_cwd:
-        db_path = cwd / "health.db"
-        url = f"sqlite:///{db_path}"
+    env_path = os.environ.get("HEALTH_DB_PATH")
+    if env_path:
+        desired_path = Path(env_path).expanduser().resolve()
+    else:
+        desired_path = (cwd / "health.db").resolve()
+
+    need_new_engine = desired_path != _engine_path or (env_path is None and cwd != _engine_cwd)
+
+    if need_new_engine:
+        url = f"sqlite:///{desired_path}"
         _engine = create_engine(
             url,
             connect_args={"check_same_thread": False},
@@ -44,6 +53,7 @@ def session_scope():
         )
         _SessionLocal = sessionmaker(bind=_engine, expire_on_commit=False)
         _engine_cwd = cwd
+        _engine_path = desired_path
         init_db(_engine)
 
     db = _SessionLocal()
