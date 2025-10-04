@@ -21,17 +21,27 @@ _SessionLocal = _DefaultSessionLocal
 _engine_path = Path(_engine.url.database).resolve()
 
 def init_db(engine) -> None:
-    """Create database tables for a given engine."""
+    """
+    Ensure all ORM models are imported and create database tables on the provided SQLAlchemy engine.
+    
+    This function imports the application's model modules to ensure the metadata is populated, then calls Base.metadata.create_all using the given engine to create any missing tables.
+    
+    Parameters:
+        engine: A SQLAlchemy Engine or engine-like object to which the metadata will be bound for table creation.
+    """
     from db import models  # noqa: F401 – ensure model import for metadata
 
     Base.metadata.create_all(engine)
 
 @contextmanager
 def session_scope():
-    """Provide a transactional scope around a series of operations.
-
-    If the current working directory changes, a new engine bound to the
-    directory's ``health.db`` is created and initialized.
+    """
+    Provide a transactional database session scoped to the current engine.
+    
+    If the HEALTH_DB_PATH environment variable or the current working directory changes, reinitializes the engine and session factory bound to the corresponding database file before yielding a session. The context commits the transaction on successful exit, rolls back and re-raises on exception, and always closes the session.
+    
+    Returns:
+        db (Session): A SQLAlchemy Session bound to the active engine.
     """
     global _engine_cwd, _engine_path, _engine, _SessionLocal
 

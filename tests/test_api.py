@@ -10,6 +10,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 # We import the server AFTER monkeypatching env when needed
 def make_app(monkeypatch, api_token=None, fakes=None):
+    """
+    Create a test FastAPI app with tools monkeypatched to controllable fake implementations.
+    
+    Builds and returns a server app where tools.log_entry, tools.get_entries, and tools.summarize
+    are replaced with provided fakes (or sensible defaults). The returned fake_entries callable
+    records the last call in its `called_with` attribute for assertions.
+    
+    Parameters:
+        monkeypatch: pytest's monkeypatch fixture used to set environment variables and attributes.
+        api_token (str | None): If provided, sets the `API_TOKEN` environment variable to this value;
+            if None, ensures `API_TOKEN` is unset.
+        fakes (dict | None): Optional mapping of replacements; keys may include `"log_entry"` and
+            `"summarize"`. If omitted, defaults are used for those functions.
+    
+    Returns:
+        tuple: (app, fake_entries) where `app` is the reloaded FastAPI application and `fake_entries`
+        is the fake `get_entries(user_id, since=None)` function whose `called_with` attribute records
+        the most recent arguments it was called with.
+    """
     if api_token is not None:
         monkeypatch.setenv("API_TOKEN", api_token)
     else:
@@ -27,6 +46,22 @@ def make_app(monkeypatch, api_token=None, fakes=None):
 
     def fake_entries(user_id, since=None):
         # record what we received for assertions
+        """
+        Fake `get_entries` implementation used in tests; records the call arguments and returns two sample symptom entries.
+        
+        Parameters:
+            user_id: Identifier passed through to each returned entry.
+            since (datetime | None): Optional timezone-aware datetime used to filter entries; recorded in `fake_entries.called_with['since']`.
+        
+        Returns:
+            list[dict]: Two dictionaries representing symptom entries for `user_id`. Each dict contains the keys:
+                - `user_id`: same as the provided `user_id`
+                - `main_symptom`: symptom name
+                - `severity`: integer severity
+                - `timestamp`: ISO 8601 UTC timestamp string
+        Side effects:
+            Sets `fake_entries.called_with` to a dict with the received `user_id` and `since` for test assertions.
+        """
         fake_entries.called_with = {"user_id": user_id, "since": since}
         # return two rows
         return [
@@ -55,12 +90,24 @@ def make_app(monkeypatch, api_token=None, fakes=None):
 
 @pytest.fixture
 def client_no_auth(monkeypatch):
+    """
+    Create a TestClient for the server with authentication disabled.
+    
+    Returns:
+        test_client (TestClient): A TestClient wrapping an app configured with no API token.
+    """
     app, _ = make_app(monkeypatch, api_token=None)
     return TestClient(app)
 
 
 @pytest.fixture
 def client_with_auth(monkeypatch):
+    """
+    Create a TestClient for the application with API token authentication enabled.
+    
+    Returns:
+        TestClient: A TestClient instance connected to an app whose `API_TOKEN` is set to "secrettoken".
+    """
     app, _ = make_app(monkeypatch, api_token="secrettoken")
     return TestClient(app)
 
