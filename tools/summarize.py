@@ -35,7 +35,16 @@ def _format_bullets(entries: list[dict]) -> str:
 
 
 def tool_summarize(user_id: str) -> str:
-    """Summarize the recent symptom logs for ``user_id``."""
+    """
+    Create a concise, doctor-friendly summary of a user's recent symptom entries.
+    
+    The function collects up to five most-recent symptom entries for the given user and attempts to produce a short, doctor-oriented summary. If no entries exist, it returns "No entries found for this user." If the summary generation fails for any reason, it falls back to returning a simple bullet-point listing of the recent entries.
+    
+    Returns:
+        str: A concise doctor-friendly summary based on the user's recent entries, or
+        the string "No entries found for this user." if there are no entries. On internal
+        errors the returned string will be a bullet-formatted representation of the recent entries.
+    """
     entries = tool_get_entries(user_id)
     if not entries:
         return "No entries found for this user."
@@ -102,7 +111,17 @@ def tool_summarize(user_id: str) -> str:
 
 
 def summarize(user_id: str, question: str | None = None, days: int = 7) -> str:
-    """Wrapper to maintain compatibility with higher-level adapters expecting this signature."""
+    """
+    Compatibility wrapper that delegates to `tool_summarize` while preserving a legacy signature.
+    
+    Parameters:
+        user_id (str): Identifier of the user whose entries will be summarized.
+        question (str | None): Ignored; accepted for compatibility with callers that pass a question.
+        days (int): Ignored; accepted for compatibility with callers that pass a time window.
+    
+    Returns:
+        summary (str): A concise, doctor-friendly summary for the given user.
+    """
 
     _ = question, days
     return tool_summarize(user_id=user_id)
