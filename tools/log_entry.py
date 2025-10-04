@@ -52,3 +52,9 @@ def tool_log(text: str, user_id: str) -> str:
             raise
 
     return f"Logged entry with id: {orm_entry.id}"
+
+
+def log_entry(user_id: str, message: str) -> str:
+    """Convenience wrapper matching the adapter signature used by the API layer."""
+
+    return tool_log(text=message, user_id=user_id)
