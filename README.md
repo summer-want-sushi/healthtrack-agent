@@ -42,6 +42,12 @@ The server listens on http://127.0.0.1:8000 (reload enabled). Key endpoints:
 
 Authentication: set `API_TOKEN=your-secret` to require `Authorization: Bearer your-secret` on all requests. If `API_TOKEN` is unset, requests are allowed (development mode).
 
+CORS configuration: set `CORS_ORIGINS` to a comma-separated list to restrict browser origins. Examples:
+
+- Development default: `CORS_ORIGINS="*"`
+- Single origin: `CORS_ORIGINS="https://summer-want-sushi-healthtrack-agent.hf.space"`
+- Multiple origins: `CORS_ORIGINS="https://app.yourdomain.com, https://yourdomain.com"`
+
 Visit `http://127.0.0.1:8000/ui` for a simple Gradio demo mounted on the API.
 
 Example requests:

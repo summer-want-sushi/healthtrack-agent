@@ -1,4 +1,7 @@
 # server/main.py
+from __future__ import annotations
+
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Optional, Any
@@ -15,14 +18,32 @@ from tools.summarize import summarize as tool_summarize
 
 app = FastAPI(title="HealthTrack-AI API", version="0.1.0")
 
-# --- CORS (open for now; restrict later) ---
+# --- CORS (configurable) ---
+def _parse_cors_origins(env_val: str | None):
+    """
+    Parse comma-separated origins. If env is None or '*', return ['*'] (dev).
+    Otherwise, return a cleaned list like ['https://app.example.com', 'https://example.com'].
+    """
+    if not env_val or env_val.strip() == "*":
+        return ["*"]
+    parts = [p.strip() for p in env_val.split(",")]
+    return [p for p in parts if p] or ["*"]
+
+_CORS_ORIGINS = _parse_cors_origins(os.getenv("CORS_ORIGINS"))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_CORS_ORIGINS,
+    allow_credentials=False,   # using Bearer token; no cookies needed
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"],       # includes 'Authorization'
 )
+
+logger = logging.getLogger(__name__)
+if _CORS_ORIGINS == ["*"]:
+    logger.warning("CORS is permissive ('*'). This is fine for dev but restrict in production via CORS_ORIGINS.")
+else:
+    logger.info("CORS allowed origins: %s", _CORS_ORIGINS)
 
 # --- Simple Bearer token auth ---
 security = HTTPBearer(auto_error=False)
