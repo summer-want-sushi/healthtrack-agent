@@ -99,3 +99,10 @@ def tool_summarize(user_id: str) -> str:
         return str(response)
     except Exception:
         return _format_bullets(recent)
+
+
+def summarize(user_id: str, question: str | None = None, days: int = 7) -> str:
+    """Wrapper to maintain compatibility with higher-level adapters expecting this signature."""
+
+    _ = question, days
+    return tool_summarize(user_id=user_id)
