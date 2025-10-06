@@ -10,6 +10,15 @@ jobs:
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # <-- FULL history, not shallow
+          lfs: false       # we aren't using LFS; skip
+
+      - name: Ensure full clone (unshallow)
+        run: |
+          if git rev-parse --is-shallow-repository | grep -q true; then
+            git fetch --unshallow
+          fi
 
       - name: Set up Git
         run: |
