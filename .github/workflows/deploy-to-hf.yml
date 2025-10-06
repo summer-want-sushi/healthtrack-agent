@@ -18,9 +18,20 @@ jobs:
 
       - name: Mirror to Hugging Face Space
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+          HF_TOKEN:    ${{ secrets.HF_TOKEN }}
           HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}   # e.g. summer-want-sushi/healthtrack-agent
           HF_SPACE_BRANCH: main
         run: |
-          git remote add hf "https://${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}"
+          set -euo pipefail
+
+          REMOTE_URL="https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}"
+
+          if git remote | grep -q '^hf$'; then
+            git remote set-url hf "$REMOTE_URL"
+          else
+            git remote add hf "$REMOTE_URL"
+          fi
+
+          # Push HEAD to the Space branch, force to keep them in sync
           git push hf "HEAD:${HF_SPACE_BRANCH}" --force
