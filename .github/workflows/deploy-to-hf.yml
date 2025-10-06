@@ -1,0 +1,26 @@
+name: Deploy to Hugging Face Space
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Git
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+
+      - name: Mirror to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}   # e.g. summer-want-sushi/healthtrack-agent
+          HF_SPACE_BRANCH: main
+        run: |
+          git remote add hf "https://${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}"
+          git push hf "HEAD:${HF_SPACE_BRANCH}" --force
