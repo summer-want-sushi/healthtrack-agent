@@ -17,14 +17,17 @@ logger = logging.getLogger(__name__)
 
 
 def tool_log(text: str, user_id: str) -> str:
-    """Persist a free-form symptom description.
-
-    Parameters
-    ----------
-    text : str
-        Description provided by the user.
-    user_id : str
-        Identifier for the submitting user.
+    """
+    Persist a free-form symptom description for a user.
+    
+    Creates a SymptomLog record for the given user, stores it in the database, and ensures the entry is upserted into the user's entries.
+    
+    Parameters:
+        text (str): Description provided by the user.
+        user_id (str): Identifier for the submitting user.
+    
+    Returns:
+        str: A string in the format "Logged entry with id: <id>" containing the database id of the created entry.
     """
     ensure_tables()
 
@@ -55,6 +58,11 @@ def tool_log(text: str, user_id: str) -> str:
 
 
 def log_entry(user_id: str, message: str) -> str:
-    """Convenience wrapper matching the adapter signature used by the API layer."""
+    """
+    Log a free-form symptom message for a user.
+    
+    Returns:
+        The id of the created log entry as a string.
+    """
 
     return tool_log(text=message, user_id=user_id)
